@@ -87,14 +87,12 @@ func read_csv(decays []Decay) []Element {
 
 		if strings.Contains(decay_name, "B-") {
 			possible_decays = append(possible_decays, decays[b_minus])
-		}
-
-		if strings.Contains(decay_name, "B+") {
+		} else if strings.Contains(decay_name, "B+") {
 			possible_decays = append(possible_decays, decays[b_plus])
-		}
-
-		if strings.Contains(decay_name, "A") {
+		} else if strings.Contains(decay_name, "A") {
 			possible_decays = append(possible_decays, decays[alpha])
+		} else {
+			continue
 		}
 
 		isotope := Element{
@@ -277,16 +275,21 @@ func react(isotopes []Element, parent Element) []Reaction {
 
 		decay_reaction.parent_el = parent
 		new_charge := parent.charge + decay.delta_charge
-		new_mass := parent.mass + decay.delta_charge
+		new_mass := parent.mass + decay.delta_mass
 		new_neutrons := new_mass - new_charge
 
 		child_els := binary_all_isotopes(isotopes, new_charge, SearchCharge{})
-		print_elements("child_els", child_els)
 		child_isotope := get_isotopes_by_neutron(child_els, new_neutrons)
-		print_elements("child_isotope", child_isotope)
 		if len(child_isotope) != 1 {
+			print_elements("child_els", child_els)
+			print_elements("child_isotope", child_isotope)
 			fmt.Println("Len not 1")
+			continue
 		}
+
+		decay_reaction.child_el = child_isotope[0]
+		decay_reaction.by_products = decay.by_products
+		decay_reaction.decay_name = decay.name
 
 		result_react = append(result_react, decay_reaction)
 	}
@@ -297,13 +300,23 @@ func print_elements(title string, e []Element) {
 	fmt.Println("")
 	fmt.Println("_____", title, "_____")
 	for _, element := range e {
-		fmt.Print(element.name, ":", element.charge, element.neutrons, ":")
+		fmt.Print(element.name, ":", "p", element.charge, " n", element.neutrons, " A", element.mass, ":")
 		for _, decay := range element.decays {
 			fmt.Print(decay.name, ",")
 		}
 		fmt.Println()
 	}
 	fmt.Println("_____----_____")
+}
+
+func print_reaction(title string, r Reaction) {
+	fmt.Println("====", title, "====")
+	fmt.Printf("%s --%s--> %s ", r.parent_el.name, r.decay_name, r.child_el.name)
+	for _, elem := range r.by_products {
+		fmt.Print("+ ", elem.name)
+	}
+	fmt.Printf("\nP.p %d P.n %d ---> C.p %d C.n %d \n", r.parent_el.protons, r.parent_el.neutrons, r.child_el.protons, r.child_el.neutrons)
+	fmt.Println("=======")
 }
 
 func main() {
@@ -330,7 +343,7 @@ func main() {
 	fmt.Println("No of isotopes after combine_dupes:", len(reduced_isotopes))
 
 	th_isotopes := binary_all_isotopes(isotopes, 90, SearchCharge{})
-	print_elements("THorium isotopes", th_isotopes)
+	//	print_elements("THorium isotopes", th_isotopes)
 	th_230, err := get_isotopes_by_name(th_isotopes, "230Th")
 	print_elements("Thorium 230", []Element{th_230})
 
@@ -339,5 +352,17 @@ func main() {
 		return
 	}
 	reaction := react(isotopes, th_230)
-	fmt.Println("Reachion", reaction)
+	print_reaction("Reachion", reaction[0])
+
+	uranium_isotopes := binary_all_isotopes(isotopes, 92, SearchCharge{})
+	//	print_elements("Uranium isotopes", uranium_isotopes)
+	u_238, err := get_isotopes_by_name(uranium_isotopes, "238U")
+
+	print_elements("Uranium-238", []Element{u_238})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	uranium_reaction := react(isotopes, u_238)
+	print_reaction("Reaction Uranium-238", uranium_reaction[0])
 }
