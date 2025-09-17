@@ -62,7 +62,6 @@ func read_csv(decays []Decay) []Element {
 	var isotope_data []Element
 	for scanner.Scan() {
 		parts := strings.Split(scanner.Text(), ",")
-		fmt.Println(parts)
 
 		if len(parts) != 4 {
 			fmt.Println("Parts too short")
@@ -70,7 +69,7 @@ func read_csv(decays []Decay) []Element {
 		}
 
 		z := parts[0] // charge
-		n := parts[1] // mass
+		n := parts[1] // neutrons
 		name := parts[2]
 		decay_name := parts[3]
 
@@ -79,9 +78,9 @@ func read_csv(decays []Decay) []Element {
 			fmt.Println("failed to convert charge", err)
 			break
 		}
-		mass, err := strconv.Atoi(n)
+		neutrons, err := strconv.Atoi(n)
 		if err != nil {
-			fmt.Println("failed to convert mass", err)
+			fmt.Println("failed to convert neutrons", err)
 			break
 		}
 		var possible_decays []Decay
@@ -101,9 +100,9 @@ func read_csv(decays []Decay) []Element {
 		isotope := Element{
 			name:     name,
 			charge:   charge,
-			mass:     mass,
+			mass:     neutrons + charge,
 			protons:  charge,
-			neutrons: mass - charge,
+			neutrons: neutrons,
 			decays:   possible_decays,
 		}
 
@@ -115,13 +114,25 @@ func read_csv(decays []Decay) []Element {
 
 func combine_dupes(isotopes []Element) []Element {
 	new_list := []Element{}
-	max_distance := 5
-	for idx, isotope := range isotopes {
-		for _, is := range isotopes[idx : idx+max_distance+1] {
+	max_distance := 8
+	for idx := 0; idx < len(isotopes); idx += 1 {
+		isotope := isotopes[idx]
+		last_dupe_at := idx
+
+		loop_end := idx + max_distance + 1
+		loop_end = min(loop_end, len(isotopes))
+
+		for jd := idx; jd < loop_end; jd += 1 {
+			is := isotopes[jd]
 			if is.name == isotope.name {
+				isotope.decays = combine_decay(isotope.decays, is.decays)
+				last_dupe_at = jd
 			}
 		}
 		new_list = append(new_list, isotope)
+
+		// gonna be skipped bc of loop conditionn (; idx +=1)
+		idx = last_dupe_at
 	}
 	return new_list
 }
@@ -143,9 +154,100 @@ func combine_decay(a, b []Decay) []Decay {
 	return result
 }
 
-func react(isotopes []Element, neutrons int32, protons int32) Reaction {
-	var decay_reaction Reaction
-	return decay_reaction
+// Binary search won't work cus idx isn't the chcarge
+// // Could work actually
+//
+
+type SeachNeturon struct{}
+
+func (s SeachNeturon) bigger(isotope Element, needle int) bool {
+	return needle < isotope.neutrons
+}
+
+func (s SeachNeturon) smaller(isotope Element, needle int) bool {
+	return needle > isotope.neutrons
+}
+
+func (s SeachNeturon) equal(isotope Element, needle int) bool {
+	return needle == isotope.neutrons
+}
+
+type SearchCharge struct{}
+
+func (s SearchCharge) bigger(isotope Element, needle int) bool {
+	return needle < isotope.charge
+}
+
+func (s SearchCharge) smaller(isotope Element, needle int) bool {
+	return needle > isotope.charge
+}
+
+func (s SearchCharge) equal(isotope Element, needle int) bool {
+	return needle == isotope.charge
+}
+
+type Searcheable interface {
+	bigger(Element, int) bool
+	smaller(Element, int) bool
+	equal(Element, int) bool
+}
+
+func binary_seach_single_isotope(isotopes []Element, needle int, se Searcheable) Element {
+	hi := len(isotopes) - 1
+	lo := 0
+	for {
+		idx := (hi + lo) / 2
+		// needle is to the left
+		if se.bigger(isotopes[idx], needle) {
+			hi = idx
+		}
+		// needle is to the left
+		if se.smaller(isotopes[idx], needle) {
+			lo = idx
+		}
+		// needle is to the left
+		if se.equal(isotopes[idx], needle) {
+			return isotopes[idx]
+		}
+	}
+}
+
+func get_isotopes_by_charge(isotopes []Element, charge int) []Element {
+	found := []Element{}
+	for _, isotope := range isotopes {
+		if isotope.charge == charge {
+			found = append(found, isotope)
+		}
+	}
+	return found
+}
+
+func get_isotopes_by_neutron(isotopes []Element, neutron int) []Element {
+	found := []Element{}
+	for _, isotope := range isotopes {
+		if isotope.neutrons == neutron {
+			found = append(found, isotope)
+		}
+	}
+	return found
+}
+
+func react(isotopes []Element, parent Element) []Reaction {
+	var result_react []Reaction
+	for _, decay := range parent.decays {
+		var decay_reaction Reaction
+		decay_reaction.parent_el = parent
+		new_charge := parent.charge + decay.delta_charge
+		new_mass := parent.mass + decay.delta_charge
+		child_el := binary_seach_single_isotope(isotopes, new_charge, SearchCharge{})
+		fmt.Println(child_el)
+		child_el.mass = new_mass
+		child_el.neutrons = new_mass - new_charge
+		child_el.protons = new_charge
+		decay_reaction.child_el = child_el
+		result_react = append(result_react, decay_reaction)
+	}
+	return result_react
 }
 
 func main() {
@@ -168,8 +270,12 @@ func main() {
 
 	isotopes := read_csv(decays)
 	fmt.Println("No of isotopes:", len(isotopes))
+	reduced_isotopes := combine_dupes(isotopes)
+	fmt.Println("No of isotopes after combine_dupes:", len(reduced_isotopes))
 
 	// He-5
-	reaction := react(isotopes, 5, 2)
-	fmt.Println(reaction)
+	th := binary_seach_single_isotope(isotopes, 90, SearchCharge{})
+	fmt.Println("THorium", th)
+	reaction := react(isotopes, th)
+	fmt.Println("Reachion", reaction)
 }
