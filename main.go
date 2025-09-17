@@ -319,6 +319,17 @@ func print_reaction(title string, r Reaction) {
 	fmt.Println("=======")
 }
 
+func get_input(message string) string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println(message)
+
+	str, _, err := reader.ReadLine()
+	if err != nil {
+		return ""
+	}
+	return string(str)
+}
+
 func main() {
 	var neutrino Element = Element{name: "neutrino", neutrons: 0, protons: 0, decays: []Decay{}}
 	var anti_neutrino Element = Element{name: "anti neutrino", neutrons: 0, protons: 1, decays: []Decay{}}
@@ -339,30 +350,31 @@ func main() {
 
 	isotopes := read_csv(decays)
 	fmt.Println("No of isotopes:", len(isotopes))
-	reduced_isotopes := combine_dupes(isotopes)
-	fmt.Println("No of isotopes after combine_dupes:", len(reduced_isotopes))
+	isotopes = combine_dupes(isotopes)
+	fmt.Println("No of isotopes after combine_dupes:", len(isotopes))
 
-	th_isotopes := binary_all_isotopes(isotopes, 90, SearchCharge{})
-	//	print_elements("THorium isotopes", th_isotopes)
-	th_230, err := get_isotopes_by_name(th_isotopes, "230Th")
-	print_elements("Thorium 230", []Element{th_230})
+	for true {
 
-	if err != nil {
-		fmt.Println(err)
-		return
+		charge_str := get_input("Element charge (Ex:238U=92):")
+
+		charge, err := strconv.Atoi(charge_str)
+		if err != nil {
+			fmt.Println("couldn't covret charge:", err)
+		}
+
+		element_isotopes := binary_all_isotopes(isotopes, charge, SearchCharge{})
+		print_elements("Uranium isotopes", element_isotopes)
+
+		name := get_input("Element name (Ex:238U:")
+		elem, err := get_isotopes_by_name(element_isotopes, name)
+		print_elements("Your Element", []Element{elem})
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		element_reactions := react(isotopes, elem)
+		for _, r := range element_reactions {
+			print_reaction("Reaction", r)
+		}
 	}
-	reaction := react(isotopes, th_230)
-	print_reaction("Reachion", reaction[0])
-
-	uranium_isotopes := binary_all_isotopes(isotopes, 92, SearchCharge{})
-	//	print_elements("Uranium isotopes", uranium_isotopes)
-	u_238, err := get_isotopes_by_name(uranium_isotopes, "238U")
-
-	print_elements("Uranium-238", []Element{u_238})
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	uranium_reaction := react(isotopes, u_238)
-	print_reaction("Reaction Uranium-238", uranium_reaction[0])
 }
