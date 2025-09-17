@@ -114,7 +114,7 @@ func read_csv(decays []Decay) []Element {
 
 func combine_dupes(isotopes []Element) []Element {
 	new_list := []Element{}
-	max_distance := 8
+	max_distance := 70
 	for idx := 0; idx < len(isotopes); idx += 1 {
 		isotope := isotopes[idx]
 		last_dupe_at := idx
@@ -192,7 +192,36 @@ type Searcheable interface {
 	equal(Element, int) bool
 }
 
-func binary_seach_single_isotope(isotopes []Element, needle int, se Searcheable) Element {
+func binary_all_isotopes(isotopes []Element, needle int, se Searcheable) []Element {
+	results := []Element{}
+	_, idx := binary_seach_single_isotope(isotopes, needle, se)
+
+	// if there are more isotopes of this element behind
+	// go to the first isotope of this Element
+	for true {
+		if idx-1 > 0 {
+			if se.equal(isotopes[idx-1], needle) {
+				idx += -1
+			} else {
+				break
+			}
+		}
+	}
+	//	if there are more isotopes in front add them
+	for true {
+		if idx+1 < len(isotopes) {
+			if se.equal(isotopes[idx+1], needle) {
+				results = append(results, isotopes[idx+1])
+				idx += 1
+			} else {
+				break
+			}
+		}
+	}
+	return results
+}
+
+func binary_seach_single_isotope(isotopes []Element, needle int, se Searcheable) (Element, int) {
 	hi := len(isotopes) - 1
 	lo := 0
 	for {
@@ -207,7 +236,7 @@ func binary_seach_single_isotope(isotopes []Element, needle int, se Searcheable)
 		}
 		// needle is to the left
 		if se.equal(isotopes[idx], needle) {
-			return isotopes[idx]
+			return isotopes[idx], idx
 		}
 	}
 }
@@ -232,22 +261,49 @@ func get_isotopes_by_neutron(isotopes []Element, neutron int) []Element {
 	return found
 }
 
+func get_isotopes_by_name(isotopes []Element, name string) (Element, error) {
+	for _, isotope := range isotopes {
+		if isotope.name == name {
+			return isotope, nil
+		}
+	}
+	return Element{}, fmt.Errorf("Could not find isotope by name")
+}
+
 func react(isotopes []Element, parent Element) []Reaction {
 	var result_react []Reaction
 	for _, decay := range parent.decays {
 		var decay_reaction Reaction
+
 		decay_reaction.parent_el = parent
 		new_charge := parent.charge + decay.delta_charge
 		new_mass := parent.mass + decay.delta_charge
-		child_el := binary_seach_single_isotope(isotopes, new_charge, SearchCharge{})
-		fmt.Println(child_el)
-		child_el.mass = new_mass
-		child_el.neutrons = new_mass - new_charge
-		child_el.protons = new_charge
-		decay_reaction.child_el = child_el
+		new_neutrons := new_mass - new_charge
+
+		child_els := binary_all_isotopes(isotopes, new_charge, SearchCharge{})
+		print_elements("child_els", child_els)
+		child_isotope := get_isotopes_by_neutron(child_els, new_neutrons)
+		print_elements("child_isotope", child_isotope)
+		if len(child_isotope) != 1 {
+			fmt.Println("Len not 1")
+		}
+
 		result_react = append(result_react, decay_reaction)
 	}
 	return result_react
+}
+
+func print_elements(title string, e []Element) {
+	fmt.Println("")
+	fmt.Println("_____", title, "_____")
+	for _, element := range e {
+		fmt.Print(element.name, ":", element.charge, element.neutrons, ":")
+		for _, decay := range element.decays {
+			fmt.Print(decay.name, ",")
+		}
+		fmt.Println()
+	}
+	fmt.Println("_____----_____")
 }
 
 func main() {
@@ -273,9 +329,15 @@ func main() {
 	reduced_isotopes := combine_dupes(isotopes)
 	fmt.Println("No of isotopes after combine_dupes:", len(reduced_isotopes))
 
-	// He-5
-	th := binary_seach_single_isotope(isotopes, 90, SearchCharge{})
-	fmt.Println("THorium", th)
-	reaction := react(isotopes, th)
+	th_isotopes := binary_all_isotopes(isotopes, 90, SearchCharge{})
+	print_elements("THorium isotopes", th_isotopes)
+	th_230, err := get_isotopes_by_name(th_isotopes, "230Th")
+	print_elements("Thorium 230", []Element{th_230})
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	reaction := react(isotopes, th_230)
 	fmt.Println("Reachion", reaction)
 }
