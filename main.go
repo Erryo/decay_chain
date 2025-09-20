@@ -23,6 +23,11 @@ ask for input
 perform decay (cascading)
 show result
 */
+
+type ChainNode struct {
+	reaction Reaction
+	childred []ChainNode
+}
 type Element struct {
 	name     string
 	neutrons int
@@ -44,6 +49,36 @@ type Reaction struct {
 	child_el    Element
 	by_products []Element
 	decay_name  string
+}
+
+func (c *ChainNode) addReaction(reac Reaction) {
+	newChild := ChainNode{reaction: reac, childred: []ChainNode{}}
+	c.childred = append(c.childred, newChild)
+}
+
+func (c *ChainNode) convertArrayToChildren(re []Reaction) {
+	for _, reaction := range re {
+		c.addReaction(reaction)
+	}
+}
+
+// breadth first Searc
+func (c ChainNode) print_bfs() {
+	queue := []ChainNode{c}
+	fmt.Println(len(c.childred))
+	for idx := 0; idx < len(queue); idx += 1 {
+		node := queue[idx]
+		print_reaction("Tree BFS", node.reaction)
+		queue = append(queue, node.childred...)
+		fmt.Println(len(node.childred))
+	}
+}
+
+func (c ChainNode) print_dfs() {
+	print_reaction("Tree DFS", c.reaction)
+	for _, child := range c.childred {
+		child.print_dfs()
+	}
 }
 
 // aos
@@ -281,9 +316,8 @@ func react(isotopes []Element, parent Element) []Reaction {
 		child_els := binary_all_isotopes(isotopes, new_charge, SearchCharge{})
 		child_isotope := get_isotopes_by_neutron(child_els, new_neutrons)
 		if len(child_isotope) != 1 {
-			print_elements("child_els", child_els)
-			print_elements("child_isotope", child_isotope)
-			fmt.Println("Len not 1")
+			//			print_elements("child_els", child_els)
+			//			fmt.Println("Len not 1")
 			continue
 		}
 
@@ -294,6 +328,19 @@ func react(isotopes []Element, parent Element) []Reaction {
 		result_react = append(result_react, decay_reaction)
 	}
 	return result_react
+}
+
+// breadth first alike
+func react_tree(isotopes []Element, parent ChainNode) ChainNode {
+	for idx, child := range parent.childred {
+		reaction_list := react(isotopes, child.reaction.child_el)
+		if len(reaction_list) == 0 {
+			continue
+		}
+		(&child).convertArrayToChildren(reaction_list)
+		parent.childred[idx] = react_tree(isotopes, child)
+	}
+	return parent
 }
 
 func print_elements(title string, e []Element) {
@@ -372,9 +419,13 @@ func main() {
 			fmt.Println(err)
 			return
 		}
+
 		element_reactions := react(isotopes, elem)
-		for _, r := range element_reactions {
-			print_reaction("Reaction", r)
-		}
+		starterNode := ChainNode{}
+		(&starterNode).convertArrayToChildren(element_reactions)
+		reaction_tree := react_tree(isotopes, starterNode)
+		//		reaction_tree.print_dfs()
+		reaction_tree.print_bfs()
+
 	}
 }
