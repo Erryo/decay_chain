@@ -235,7 +235,6 @@ func binary_all_isotopes(isotopes []Element, needle int, se Searcheable) []Eleme
 	if idx == -1 {
 		return []Element{}
 	}
-	fmt.Println("Got results")
 	// if there are more isotopes of this element behind
 	// go to the first isotope of this Element
 	for true {
@@ -326,7 +325,7 @@ func react(isotopes []Element, parent Element) []Reaction {
 		child_isotope := get_isotopes_by_neutron(child_els, new_neutrons)
 		if len(child_isotope) != 1 {
 			//			print_elements("child_els", child_els)
-			//			fmt.Println("Len not 1")
+			fmt.Println("Len not 1")
 			continue
 		}
 
@@ -421,7 +420,31 @@ func show_isotopes(isotopes []Element) Element {
 	return selected_iso
 }
 
-func show_react_tree(root ChainNode) {
+func draw_isotope(iso Element, x int32, y int32) {
+	fmt.Println("Draw", iso.name, x, y)
+	stripped_name := strings.TrimLeft(iso.name, "0123456789")
+	rl.DrawText(stripped_name, x, y, 16, rl.Black)
+	rl.DrawText(strconv.Itoa(iso.charge), x-20, y+10, 12, rl.Black)
+	rl.DrawText(strconv.Itoa(iso.mass), x-20, y-10, 12, rl.Black)
+
+	rl.DrawRing(
+		rl.NewVector2(float32(x-2), float32(y+6)),
+		27, 30, // inner and outer radius (30 radius, 4 thickness)
+		0, 360, // full circle
+		32, // segments
+		rl.Blue,
+	)
+}
+
+func show_react_tree(x, y int32, root ChainNode) {
+	fmt.Println(len(root.childred))
+	draw_isotope(root.reaction.child_el, x, y)
+	x -= 50
+	for i, child := range root.childred {
+		var new_x int32 = x + int32((60+80/len(root.childred))*i)
+		var new_y int32 = y + 100
+		show_react_tree(new_x, new_y, child)
+	}
 }
 
 func main() {
@@ -457,7 +480,7 @@ func main() {
 	var selected_element []Element
 	charge_str := ""
 	var charge int
-	var react_tree ChainNode
+	var react_root ChainNode
 	title := "Enter Element Charge"
 
 	for !rl.WindowShouldClose() {
@@ -490,8 +513,12 @@ func main() {
 
 		} else if selected_iso.name == "" {
 			selected_iso = show_isotopes(selected_element)
-		} else if react_tree.reaction.decay_name != "" {
-			show_react_tree(react_tree)
+			reactions := react(isotopes, selected_iso)
+			react_root.reaction = Reaction{parent_el: Element{}, decay_name: "", child_el: selected_iso}
+			react_root.convertArrayToChildren(reactions)
+			react_root = react_tree(isotopes, react_root)
+		} else if react_root.reaction.child_el.name != "" {
+			show_react_tree(int32(sc_w)/2, int32(sc_h/2), react_root)
 		}
 
 		rl.EndDrawing()
