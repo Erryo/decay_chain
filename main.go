@@ -6,6 +6,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	gui "github.com/gen2brain/raylib-go/raygui"
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 const Data_Location = "data/nndc_nudat_DecayMode.csv"
@@ -229,6 +232,10 @@ func binary_all_isotopes(isotopes []Element, needle int, se Searcheable) []Eleme
 	results := []Element{}
 	_, idx := binary_seach_single_isotope(isotopes, needle, se)
 
+	if idx == -1 {
+		return []Element{}
+	}
+	fmt.Println("Got results")
 	// if there are more isotopes of this element behind
 	// go to the first isotope of this Element
 	for true {
@@ -257,21 +264,23 @@ func binary_all_isotopes(isotopes []Element, needle int, se Searcheable) []Eleme
 func binary_seach_single_isotope(isotopes []Element, needle int, se Searcheable) (Element, int) {
 	hi := len(isotopes) - 1
 	lo := 0
-	for {
+	for lo <= hi {
 		idx := (hi + lo) / 2
+
 		// needle is to the left
 		if se.bigger(isotopes[idx], needle) {
-			hi = idx
+			hi = idx - 1
 		}
 		// needle is to the left
 		if se.smaller(isotopes[idx], needle) {
-			lo = idx
+			lo = idx + 1
 		}
 		// needle is to the left
 		if se.equal(isotopes[idx], needle) {
 			return isotopes[idx], idx
 		}
 	}
+	return Element{}, -1
 }
 
 func get_isotopes_by_charge(isotopes []Element, charge int) []Element {
@@ -377,6 +386,44 @@ func get_input(message string) string {
 	return string(str)
 }
 
+func show_isotopes(isotopes []Element) Element {
+	sc_height := rl.GetScreenHeight()
+	selected_iso := Element{}
+	const offset_y = 2
+	for i, isoto := range isotopes {
+		button_height := float32(sc_height / len(isotopes))
+		if button_height > 70 {
+			button_height = 70
+		}
+		split_idx := 0
+		if button_height < 25 {
+			button_height = 25
+			split_idx = (sc_height)/int(button_height+offset_y) - 1
+		}
+		var x float32 = 100
+		var y float32 = float32(i)*button_height + float32(offset_y)
+		if split_idx != 0 {
+			if i > split_idx {
+				x = 330
+				y -= float32(split_idx)*button_height + float32(offset_y)
+			}
+		}
+		if y > float32(sc_height) {
+			fmt.Println(y)
+		}
+		button := gui.Button(rl.Rectangle{X: x, Y: y, Width: 200, Height: button_height}, isoto.name)
+		fmt.Println(button_height, split_idx)
+		if button {
+			fmt.Println(isoto.name)
+			selected_iso = isoto
+		}
+	}
+	return selected_iso
+}
+
+func show_react_tree(root ChainNode) {
+}
+
 func main() {
 	var neutrino Element = Element{name: "neutrino", neutrons: 0, protons: 0, decays: []Decay{}}
 	var anti_neutrino Element = Element{name: "anti neutrino", neutrons: 0, protons: 1, decays: []Decay{}}
@@ -400,32 +447,54 @@ func main() {
 	isotopes = combine_dupes(isotopes)
 	fmt.Println("No of isotopes after combine_dupes:", len(isotopes))
 
-	for true {
+	rl.InitWindow(800, 450, "raylib [core] example - basic window")
+	defer rl.CloseWindow()
+	gui.SetStyle(gui.DEFAULT, gui.TEXT_SIZE, 20)
 
-		charge_str := get_input("Element charge (Ex:238U=92):")
+	rl.SetTargetFPS(60)
 
-		charge, err := strconv.Atoi(charge_str)
-		if err != nil {
-			fmt.Println("couldn't covret charge:", err)
+	var selected_iso Element
+	var selected_element []Element
+	charge_str := ""
+	var charge int
+	var react_tree ChainNode
+	title := "Enter Element Charge"
+
+	for !rl.WindowShouldClose() {
+		sc_h := rl.GetScreenHeight()
+		sc_w := rl.GetScreenWidth()
+		rl.BeginDrawing()
+
+		rl.ClearBackground(rl.RayWhite)
+
+		if len(selected_element) == 0 {
+			bound := rl.Rectangle{X: float32(sc_w-200) / 2, Y: float32(sc_h-100) / 2, Width: 200, Height: 100}
+			rl.DrawText(title, int32(bound.X)-120, int32(bound.Y)-100, 40, rl.LightGray)
+			gui.TextBox(bound, &charge_str, 4, true)
+
+			if rl.IsKeyPressed(rl.KeyEnter) {
+				var err error
+				charge, err = strconv.Atoi(charge_str)
+				if err != nil {
+					fmt.Println("converting charge_str,", err)
+					title = "Please insert only numbers"
+					rl.EndDrawing()
+					continue
+				}
+				selected_element = binary_all_isotopes(isotopes, charge, SearchCharge{})
+				if len(selected_element) == 0 {
+					charge_str = ""
+					title = "Could not find"
+				}
+			}
+
+		} else if selected_iso.name == "" {
+			selected_iso = show_isotopes(selected_element)
+		} else if react_tree.reaction.decay_name != "" {
+			show_react_tree(react_tree)
 		}
 
-		element_isotopes := binary_all_isotopes(isotopes, charge, SearchCharge{})
-		print_elements("Uranium isotopes", element_isotopes)
-
-		name := get_input("Element name (Ex:238U:")
-		elem, err := get_isotopes_by_name(element_isotopes, name)
-		print_elements("Your Element", []Element{elem})
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		element_reactions := react(isotopes, elem)
-		starterNode := ChainNode{}
-		(&starterNode).convertArrayToChildren(element_reactions)
-		reaction_tree := react_tree(isotopes, starterNode)
-		//		reaction_tree.print_dfs()
-		reaction_tree.print_bfs()
+		rl.EndDrawing()
 
 	}
 }
