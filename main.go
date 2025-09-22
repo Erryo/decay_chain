@@ -19,6 +19,14 @@ const (
 	gamma
 )
 
+var (
+	mouse_x      int32
+	mouse_y      int32
+	mouse_toggle bool
+	dx           int32
+	dy           int32
+)
+
 /*
 read csv
 (ideally)show plot
@@ -421,7 +429,6 @@ func show_isotopes(isotopes []Element) Element {
 }
 
 func draw_isotope(iso Element, x int32, y int32) {
-	fmt.Println("Draw", iso.name, x, y)
 	stripped_name := strings.TrimLeft(iso.name, "0123456789")
 	rl.DrawText(stripped_name, x, y, 16, rl.Black)
 	rl.DrawText(strconv.Itoa(iso.charge), x-20, y+10, 12, rl.Black)
@@ -437,7 +444,6 @@ func draw_isotope(iso Element, x int32, y int32) {
 }
 
 func show_react_tree(x, y int32, root ChainNode) {
-	fmt.Println(len(root.childred))
 	draw_isotope(root.reaction.child_el, x, y)
 	x -= 50
 	for i, child := range root.childred {
@@ -445,6 +451,37 @@ func show_react_tree(x, y int32, root ChainNode) {
 		var new_y int32 = y + 100
 		show_react_tree(new_x, new_y, child)
 	}
+}
+
+func get_mouse_drag() (int32, int32) {
+	if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
+		dx = (int32(rl.GetScreenWidth())/2 + mouse_x) - int32(rl.GetMousePosition().X)
+		dy = (int32(rl.GetScreenHeight())/2 + mouse_y) - int32(rl.GetMousePosition().Y)
+	}
+	if rl.IsMouseButtonReleased(rl.MouseButtonLeft) {
+		mouse_x = dx
+		mouse_y = dy
+	}
+	rl.DrawLine(mouse_x, mouse_y, int32(rl.GetMousePosition().X), int32(rl.GetMousePosition().Y), rl.Red)
+	rl.DrawCircleLines(int32(rl.GetMousePosition().X), int32(rl.GetMousePosition().Y), 10, rl.Blue)
+	rl.DrawCircleLines(mouse_x, mouse_y, 10, rl.Red)
+	return dx, dy
+}
+
+func get_keyboard(dx, dy int32) (int32, int32) {
+	if rl.IsKeyDown(rl.KeyW) {
+		dy += int32(300 * rl.GetFrameTime())
+	}
+	if rl.IsKeyDown(rl.KeyS) {
+		dy -= int32(300 * rl.GetFrameTime())
+	}
+	if rl.IsKeyDown(rl.KeyA) {
+		dx += int32(300 * rl.GetFrameTime())
+	}
+	if rl.IsKeyDown(rl.KeyD) {
+		dx -= int32(300 * rl.GetFrameTime())
+	}
+	return dx, dy
 }
 
 func main() {
@@ -483,6 +520,8 @@ func main() {
 	var react_root ChainNode
 	title := "Enter Element Charge"
 
+	var kb_dx int32
+	var kb_dy int32
 	for !rl.WindowShouldClose() {
 		sc_h := rl.GetScreenHeight()
 		sc_w := rl.GetScreenWidth()
@@ -518,7 +557,10 @@ func main() {
 			react_root.convertArrayToChildren(reactions)
 			react_root = react_tree(isotopes, react_root)
 		} else if react_root.reaction.child_el.name != "" {
-			show_react_tree(int32(sc_w)/2, int32(sc_h/2), react_root)
+			//	mouse_data = get_mouse_drag(mouse_data)
+			// kb_dx, kb_dy = get_keyboard(kb_dx, kb_dy)
+			kb_dx, kb_dy = get_mouse_drag()
+			show_react_tree(int32(sc_w)/2+kb_dx, int32(sc_h/2)+kb_dy, react_root)
 		}
 
 		rl.EndDrawing()
