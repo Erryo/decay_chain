@@ -36,6 +36,7 @@ show result
 */
 
 type ChainNode struct {
+	layer    int
 	reaction Reaction
 	childred []ChainNode
 }
@@ -63,7 +64,7 @@ type Reaction struct {
 }
 
 func (c *ChainNode) addReaction(reac Reaction) {
-	newChild := ChainNode{reaction: reac, childred: []ChainNode{}}
+	newChild := ChainNode{reaction: reac, childred: []ChainNode{}, layer: c.layer + 1}
 	c.childred = append(c.childred, newChild)
 }
 
@@ -449,7 +450,32 @@ func show_react_tree(x, y int32, root ChainNode) {
 	for i, child := range root.childred {
 		var new_x int32 = x + int32((60+80/len(root.childred))*i)
 		var new_y int32 = y + 100
+		rl.DrawLine(x+50, y, new_x, new_y, rl.Black)
 		show_react_tree(new_x, new_y, child)
+	}
+}
+
+func show_tree_breadth_first(root ChainNode, dx, dy int32) {
+	var queue []ChainNode = []ChainNode{root}
+	for idx := 0; idx < len(queue); idx += 1 {
+		node := queue[idx]
+		print_reaction("Test", node.reaction)
+		queue = append(queue, node.childred...)
+	}
+	fmt.Println(len(queue))
+	var x int32 = int32(rl.GetScreenWidth()) / 2
+	var y int32 = int32(rl.GetScreenHeight()) / 2
+	var last_layer int = queue[len(queue)-1].layer
+	for idx := len(queue) - 1; idx > 0; idx -= 1 {
+		node := queue[idx]
+		if last_layer != node.layer {
+			y += 120
+			x = int32(rl.GetScreenWidth() / 2)
+			last_layer = node.layer
+		} else {
+			x += int32((60 + 80/len(root.childred)))
+		}
+		draw_isotope(node.reaction.child_el, x+dx, y+dy)
 	}
 }
 
@@ -462,9 +488,9 @@ func get_mouse_drag() (int32, int32) {
 		mouse_x = dx
 		mouse_y = dy
 	}
-	rl.DrawLine(mouse_x, mouse_y, int32(rl.GetMousePosition().X), int32(rl.GetMousePosition().Y), rl.Red)
-	rl.DrawCircleLines(int32(rl.GetMousePosition().X), int32(rl.GetMousePosition().Y), 10, rl.Blue)
-	rl.DrawCircleLines(mouse_x, mouse_y, 10, rl.Red)
+	/// rl.DrawLine(mouse_x, mouse_y, int32(rl.GetMousePosition().X), int32(rl.GetMousePosition().Y), rl.Red)
+	/// rl.DrawCircleLines(int32(rl.GetMousePosition().X), int32(rl.GetMousePosition().Y), 10, rl.Blue)
+	/// rl.DrawCircleLines(mouse_x, mouse_y, 10, rl.Red)
 	return dx, dy
 }
 
@@ -507,7 +533,7 @@ func main() {
 	isotopes = combine_dupes(isotopes)
 	fmt.Println("No of isotopes after combine_dupes:", len(isotopes))
 
-	rl.InitWindow(800, 450, "raylib [core] example - basic window")
+	rl.InitWindow(800, 450, "Chain Decay Visualizer")
 	defer rl.CloseWindow()
 	gui.SetStyle(gui.DEFAULT, gui.TEXT_SIZE, 20)
 
@@ -560,7 +586,8 @@ func main() {
 			//	mouse_data = get_mouse_drag(mouse_data)
 			// kb_dx, kb_dy = get_keyboard(kb_dx, kb_dy)
 			kb_dx, kb_dy = get_mouse_drag()
-			show_react_tree(int32(sc_w)/2+kb_dx, int32(sc_h/2)+kb_dy, react_root)
+			// show_react_tree(int32(sc_w)/2+kb_dx, int32(sc_h/2)+kb_dy, react_root)
+			show_tree_breadth_first(react_root, kb_dx, kb_dy)
 		}
 
 		rl.EndDrawing()
